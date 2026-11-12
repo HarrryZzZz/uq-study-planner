@@ -1,0 +1,35 @@
+# Dependencies and runtime files
+node_modules/
+.venv/
+*.log
+.env
+.env.*
+!.env.example
+
+# Operating-system, editor and Python cache files
+.DS_Store
+Thumbs.db
+__pycache__/
+*.py[cod]
+.vscode/
+.idea/
+~$*
+
+# Local source documents and workbooks stay on this computer.
+/resources/*
+!/resources/README.md
+
+# Keep only the course-data provenance needed to rebuild or audit the dataset.
+/outputs/*
+!/outputs/uq_general_electives/
+/outputs/uq_general_electives/*
+!/outputs/uq_general_electives/assessment-audit.json
+!/outputs/uq_general_electives/offering-audit.json
+
+# Personal plans and local distribution archives
+*study-plan*.json
+*.zip
+
+# Personal planning documents and the older packaged copy.
+/docs/*.docx
+/uq-study-planner/

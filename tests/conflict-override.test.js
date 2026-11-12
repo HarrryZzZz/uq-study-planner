@@ -1,0 +1,30 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+import {createDraft,checkAddition,forceAddCourse,planIssues,removeCourse} from '../src/elective-plan.js';
+import {getReference} from '../src/reference-data.js';
+import {exportDraft,parseDraft} from '../src/draft-file.js';
+const catalogue=JSON.parse(readFileSync(new URL('../src/data/electives.json',import.meta.url))).courses;
+const config={id:'is',year:2026,intake:1,duration:'2'};
+const resolve=s=>getReference(s.id,s.intake);
+const base=()=>createDraft(config,resolve(config));
+test('user-confirmed repeat is recorded, roundtrips and keeps credit warning',()=>{
+ const d=base(),c=catalogue.find(x=>x.code==='BISM7202'),check=checkAddition(d,1,c,catalogue);
+ assert.equal(check.overridable,true);
+ assert.throws(()=>forceAddCourse(d,1,c,catalogue,{reason:'',note:''}),/理由/);
+ const next=forceAddCourse(d,1,c,catalogue,{reason:'failed',note:'计划重修'});
+ assert.equal(d.semesters[1].slots.some(x=>x.course),false);
+ assert.ok(planIssues(next,catalogue).review.some(x=>x.includes('计划重修')));
+ assert.deepEqual(parseDraft(JSON.stringify(exportDraft(next,[],catalogue)),resolve,catalogue),next);
+ assert.ok(!removeCourse(next,1,c.code).semesters[1].slots.some(x=>x.course?.code===c.code));
+});
+test('known incompatibility can be explicitly retained but not unrelated capacity restrictions',()=>{
+ const d=base(),real=catalogue.find(x=>x.code==='BISM7213');
+ const c={...real,incompatible:'BISM7202',offerings:{2026:[1,2]}};
+ const data=catalogue.map(x=>x.code===c.code?c:x),check=checkAddition(d,1,c,data);
+ assert.ok(check.conflicts.length);
+ const next=forceAddCourse(d,1,c,data,{reason:'approved',note:'待确认'});
+ assert.ok(planIssues(next,data).review.some(x=>x.includes('已向学院确认')));
+ assert.deepEqual(parseDraft(JSON.stringify(exportDraft(next,[],data)),resolve,data),next);
+ assert.throws(()=>forceAddCourse(d,0,c,data,{reason:'approved',note:''}),/无法通过/);
+});

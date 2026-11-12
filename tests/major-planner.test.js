@@ -1,0 +1,10 @@
+import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';
+import {makeMajorSelection,resolveMajorReference} from '../src/major-planner.js';
+import {selectedMajorNames} from '../src/course-category.js';
+import {createDraft} from '../src/elective-plan.js';import {exportDraft,parseDraft} from '../src/draft-file.js';
+const catalogue=JSON.parse(fs.readFileSync(new URL('../src/data/electives.json',import.meta.url))).courses;
+const base={year:2026,intake:1,duration:'1.5'},resolve=s=>resolveMajorReference(s,catalogue);
+test('individual majors reuse exact official plan and preserve user order',()=>{const s=makeMajorSelection(base,'marketing','is');assert.equal(s.id,'is-marketing');assert.deepEqual(selectedMajorNames(s),['Marketing','Information Systems']);assert.equal(resolve(s).generated,false)});
+test('unlisted double major gets a non-verified draft and reference snapshot survives import',()=>{const s=makeMajorSelection(base,'international','supply'),ref=resolve(s),draft=createDraft(s,ref);assert.equal(ref.generated,true);assert.equal(ref.semesters.length,3);assert.equal(ref.semesters.flat().length,12);assert.ok(ref.note.includes('核实'));assert.deepEqual(parseDraft(JSON.stringify(exportDraft(draft)),()=>{throw Error('no current data')},catalogue),draft)});
+test('missing input, duplicate fields and overlapping mandatory majors fail clearly',()=>{assert.throws(()=>makeMajorSelection(base,'is','is'));const s=makeMajorSelection(base,'is','supply');assert.throws(()=>resolveMajorReference(s,[]),/资料尚未加载/);assert.throws(()=>resolve(s),/重叠/)});
+test('generated snapshot cannot be imported with incompatible selection or slot modifications',()=>{const s=makeMajorSelection(base,'advertising','supply'),d=createDraft(s,resolve(s)),file=exportDraft(d);file.draft.referenceSnapshot.semesters[0][0]='FAKE7000';assert.throws(()=>parseDraft(JSON.stringify(file),resolve,catalogue),/不匹配|无法核实/)});

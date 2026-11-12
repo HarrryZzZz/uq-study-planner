@@ -1,0 +1,11 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {createDraft} from '../src/elective-plan.js';
+import {courseRecords,setCourseStatus,majorProgress,assignMajor} from '../src/course-progress.js';
+import {completeSemester} from '../src/study-progress.js';
+const selection={id:'is-marketing',year:2026,intake:1,duration:'2'};
+const catalogue=[{code:'BISM7202',name:'IS',units:2,categories:['Information Systems Compulsory Courses']},{code:'MKTG7501',name:'Marketing',units:2,categories:['Marketing Compulsory Courses']},{code:'TEST7001',name:'Shared',units:2,categories:['Information Systems Elective Courses','Marketing Elective Courses']}];
+const draft=()=>createDraft(selection,{semesters:[['BISM7202','MKTG7501','TEST7001'],['?选修课程']]});
+test('records manual status without mutating draft; passed units and planned units are distinct',()=>{const a=draft(),b=setCourseStatus(a,0,'BISM7202','passed'),c=setCourseStatus(b,0,'MKTG7501','failed');assert.equal(courseRecords(a,catalogue)[0].status,'planned');const r=majorProgress(c,catalogue);assert.equal(r.groups[0].passedUnits,2);assert.equal(r.groups[1].failedUnits,2);assert.equal(r.unresolved[0].code,'TEST7001');assert.equal(r.groups[0].remainingUnits,8)});
+test('shared course counts once only after user confirms assignment',()=>{const a=draft(),b=assignMajor(a,0,'TEST7001','Marketing',catalogue),r=majorProgress(b,catalogue);assert.equal(r.groups[0].plannedUnits,2);assert.equal(r.groups[1].plannedUnits,4);assert.equal(r.unresolved.length,0);assert.throws(()=>assignMajor(a,0,'BISM7202','Marketing',catalogue))});
+test('recorded individual grades override state; legacy aggregate does not imply pass',()=>{const a=draft(),b=completeSemester(a,0,{BISM7202:'5',MKTG7501:'3',TEST7001:'P'},catalogue);assert.deepEqual(courseRecords(b,catalogue).map(x=>x.status),['passed','failed','passed']);assert.throws(()=>setCourseStatus(b,0,'BISM7202','failed'),/成绩/);const c=completeSemester(a,0,5,catalogue);assert.equal(courseRecords(c,catalogue)[0].needsGradeReview,true);assert.equal(majorProgress(c,catalogue).groups[0].passedUnits,0)});
